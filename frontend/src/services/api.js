@@ -2,6 +2,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
+  timeout: 15000, // 15 second timeout
 });
 
 api.interceptors.request.use((config) => {
@@ -12,12 +13,28 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.code === "ECONNABORTED") {
+      error.response = {
+        data: { message: "Request timeout - server is taking too long to respond" }
+      };
+    }
+    return Promise.reject(error);
+  }
+);
+
 // AUTH
 export const register = (payload) =>
   api.post("/api/auth/register", payload);
 
 export const login = (payload) =>
   api.post("/api/auth/login", payload);
+
+export const googleLogin = (payload) =>
+  api.post("/api/auth/google-login", payload);
 
 export const requestForgotPassword = (payload) =>
   api.post("/api/auth/forgot-password", payload);

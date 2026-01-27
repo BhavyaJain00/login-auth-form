@@ -42,6 +42,7 @@ export default function FormBuilderPage() {
   const [editingSubmissionData, setEditingSubmissionData] = useState({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [theme, setTheme] = useState("light"); // "light" or "dark"
 
   // Load user's forms and submissions on mount
   useEffect(() => {
@@ -265,6 +266,22 @@ export default function FormBuilderPage() {
     }
   };
 
+  const handleCreateNewForm = () => {
+    setFields([]);
+    setFormTitle("Form 1");
+    setFormDescription("");
+    setCurrentFormId(null);
+    setFormValues({});
+    idCounter = 1;
+    setActiveIndex(null);
+    setMessage("New form created!");
+    setTimeout(() => setMessage(""), 3000);
+  };
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
   const renderFieldInput = (field) => {
     const value = formValues[field.id] || (field.defaultValue || "");
 
@@ -392,15 +409,22 @@ export default function FormBuilderPage() {
         : submissions.filter((s) => s.formId?._id === submissionFormFilter);
 
     return (
-      <div className="builder-layout">
-        <div style={{ gridColumn: "1 / -1", background: "#ffffff", borderRadius: "10px", padding: "20px" }}>
+      <div className="builder-layout" style={{ background: theme === "dark" ? "#1f2937" : "#ffffff", color: theme === "dark" ? "#ffffff" : "#000000" }}>
+        <div style={{ gridColumn: "1 / -1", background: theme === "dark" ? "#111827" : "#ffffff", borderRadius: "10px", padding: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <h2>My Submissions</h2>
             <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <button
+                className="primary-btn"
+                onClick={toggleTheme}
+                style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+              >
+                {theme === "light" ? "🌙 Dark" : "☀️ Light"}
+              </button>
               <select
                 value={submissionFormFilter}
                 onChange={(e) => setSubmissionFormFilter(e.target.value)}
-                style={{ minWidth: "220px" }}
+                style={{ minWidth: "220px", background: theme === "dark" ? "#374151" : "#ffffff", color: theme === "dark" ? "#ffffff" : "#000000", border: `1px solid ${theme === "dark" ? "#4b5563" : "#e5e7eb"}` }}
               >
                 <option value="all">All forms</option>
                 {savedForms.map((f) => (
@@ -503,8 +527,8 @@ export default function FormBuilderPage() {
   }
 
   return (
-    <div className="builder-layout">
-      <aside className="builder-sidebar">
+    <div className="builder-layout" style={{ background: theme === "dark" ? "#1f2937" : "#ffffff", color: theme === "dark" ? "#ffffff" : "#000000" }}>
+      <aside className="builder-sidebar" style={{ background: theme === "dark" ? "#111827" : "#f9fafb", borderRight: `1px solid ${theme === "dark" ? "#374151" : "#e5e7eb"}` }}>
         <h3>Inputs</h3>
         <div className="palette-list">
           {PALETTE_FIELDS.map((item) => (
@@ -516,12 +540,20 @@ export default function FormBuilderPage() {
                 e.dataTransfer.setData("text/plain", JSON.stringify(item));
               }}
               onClick={() => addField(item)}
+              style={{ background: theme === "dark" ? "#374151" : "#ffffff", color: theme === "dark" ? "#ffffff" : "#000000", border: `1px solid ${theme === "dark" ? "#4b5563" : "#e5e7eb"}` }}
             >
               {item.label}
             </button>
           ))}
         </div>
         <div style={{ marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #e5e7eb" }}>
+          <button 
+            className="primary-btn" 
+            onClick={handleCreateNewForm}
+            style={{ width: "100%", marginBottom: "15px" }}
+          >
+            Create New Form
+          </button>
           <h3 style={{ fontSize: "0.95rem", marginBottom: "10px" }}>Saved Forms</h3>
           {savedForms.length === 0 ? (
             <p className="muted-small">No saved forms</p>
@@ -532,10 +564,11 @@ export default function FormBuilderPage() {
                   key={form._id}
                   style={{
                     padding: "8px",
-                    background: form._id === currentFormId ? "#e0e7ff" : "#f9fafb",
+                    background: form._id === currentFormId ? (theme === "dark" ? "#3b82f6" : "#e0e7ff") : (theme === "dark" ? "#374151" : "#f9fafb"),
                     borderRadius: "6px",
                     cursor: "pointer",
-                    fontSize: "0.85rem"
+                    fontSize: "0.85rem",
+                    color: theme === "dark" ? "#ffffff" : "#000000"
                   }}
                   onClick={() => handleLoadForm(form._id)}
                 >
@@ -554,8 +587,9 @@ export default function FormBuilderPage() {
         className="builder-canvas"
         onDrop={handleDropFromPalette}
         onDragOver={onDragOver}
+        style={{ background: theme === "dark" ? "#1f2937" : "#ffffff" }}
       >
-        <div className="canvas-header">
+        <div className="canvas-header" style={{ background: theme === "dark" ? "#111827" : "#ffffff", borderBottom: `1px solid ${theme === "dark" ? "#374151" : "#e5e7eb"}` }}>
           <div>
             <input
               type="text"
@@ -569,9 +603,10 @@ export default function FormBuilderPage() {
                 padding: "4px 8px",
                 borderRadius: "4px",
                 width: "100%",
-                maxWidth: "400px"
+                maxWidth: "400px",
+                color: theme === "dark" ? "#ffffff" : "#000000"
               }}
-              onFocus={(e) => (e.target.style.background = "#ffffff")}
+              onFocus={(e) => (e.target.style.background = theme === "dark" ? "#374151" : "#ffffff")}
               onBlur={(e) => (e.target.style.background = "transparent")}
             />
             <textarea
@@ -587,13 +622,21 @@ export default function FormBuilderPage() {
                 width: "100%",
                 maxWidth: "400px",
                 resize: "vertical",
-                minHeight: "40px"
+                minHeight: "40px",
+                color: theme === "dark" ? "#ffffff" : "#000000"
               }}
-              onFocus={(e) => (e.target.style.background = "#ffffff")}
+              onFocus={(e) => (e.target.style.background = theme === "dark" ? "#374151" : "#ffffff")}
               onBlur={(e) => (e.target.style.background = "transparent")}
             />
           </div>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button
+              className="primary-btn"
+              onClick={toggleTheme}
+              style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+            >
+              {theme === "light" ? "🌙 Dark" : "☀️ Light"}
+            </button>
             <button className="primary-btn" onClick={handleSaveForm} disabled={loading}>
               {loading ? "Saving..." : "Save Form"}
             </button>
@@ -631,6 +674,7 @@ export default function FormBuilderPage() {
               onDrop={(e) => handleReorderDrop(e, index)}
               onDragOver={onDragOver}
               onClick={() => setActiveIndex(index)}
+              style={{ background: theme === "dark" ? "#374151" : "#ffffff", border: `1px solid ${theme === "dark" ? "#4b5563" : "#e5e7eb"}`, color: theme === "dark" ? "#ffffff" : "#000000" }}
             >
               <label className="canvas-field-label">
                 {field.label}{" "}
@@ -665,7 +709,7 @@ export default function FormBuilderPage() {
         )}
       </section>
 
-      <aside className="builder-inspector">
+      <aside className="builder-inspector" style={{ background: theme === "dark" ? "#111827" : "#f9fafb", borderLeft: `1px solid ${theme === "dark" ? "#374151" : "#e5e7eb"}`, color: theme === "dark" ? "#ffffff" : "#000000" }}>
         <h3>Field settings</h3>
         {activeIndex == null ? (
           <p className="muted">Select a field on the canvas to edit.</p>
@@ -675,16 +719,17 @@ export default function FormBuilderPage() {
             if (!field) return <p className="muted">No field selected.</p>;
             return (
               <div className="inspector-form">
-                <label>
+                <label style={{ color: theme === "dark" ? "#ffffff" : "#000000" }}>
                   Label
                   <input
                     type="text"
                     value={field.label}
                     onChange={(e) => handleFieldChange(field.id, { label: e.target.value })}
+                    style={{ background: theme === "dark" ? "#374151" : "#ffffff", color: theme === "dark" ? "#ffffff" : "#000000", border: `1px solid ${theme === "dark" ? "#4b5563" : "#e5e7eb"}` }}
                   />
                 </label>
                 {field.type !== "checkbox" && (
-                  <label>
+                  <label style={{ color: theme === "dark" ? "#ffffff" : "#000000" }}>
                     Placeholder
                     <input
                       type="text"
@@ -692,6 +737,7 @@ export default function FormBuilderPage() {
                       onChange={(e) =>
                         handleFieldChange(field.id, { placeholder: e.target.value })
                       }
+                      style={{ background: theme === "dark" ? "#374151" : "#ffffff", color: theme === "dark" ? "#ffffff" : "#000000", border: `1px solid ${theme === "dark" ? "#4b5563" : "#e5e7eb"}` }}
                     />
                   </label>
                 )}

@@ -13,13 +13,37 @@ export default function RegisterPage() {
 
   const handleSubmit = async () => {
     setError("");
+    
+    // Client-side validation
+    if (!name.trim()) {
+      setError("Full name is required");
+      return;
+    }
+    if (!email.trim()) {
+      setError("Email is required");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
     setLoading(true);
     try {
-      const { data } = await register({ name, email, password });
+      const { data } = await register({ 
+        name: name.trim(), 
+        email: email.trim(), 
+        password 
+      });
       localStorage.setItem("token", data.token);
       navigate("/builder");
     } catch (err) {
-      setError(err.response?.data?.message || "Registration failed");
+      const errorMsg = err.response?.data?.message || err.message;
+      if (err.code === "ECONNABORTED") {
+        setError("Request timeout - please check your internet connection");
+      } else {
+        setError(errorMsg || "Registration failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -39,18 +63,34 @@ export default function RegisterPage() {
       {error && <div className="error-text">{error}</div>}
       <label>
         Full name
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+        <input 
+          type="text" 
+          placeholder="Enter your full name"
+          value={name} 
+          onChange={(e) => setName(e.target.value)} 
+          disabled={loading}
+          required 
+        />
       </label>
       <label>
         Email
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <input 
+          type="email" 
+          placeholder="Enter your email"
+          value={email} 
+          onChange={(e) => setEmail(e.target.value)} 
+          disabled={loading}
+          required 
+        />
       </label>
       <label>
         Password
         <input
           type="password"
+          placeholder="Enter password (min 6 characters)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          disabled={loading}
           required
         />
       </label>

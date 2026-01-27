@@ -1,12 +1,15 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { OAuth2Client } from "google-auth-library";
 
 import User from "../models/User.js";
 import { sendResetEmail } from "../utils/email.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 const JWT_EXPIRES_IN = "7d";
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const google = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 export const registerUser = async (req, res) => {
   try {
@@ -15,12 +18,19 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: "Name, email and password are required" });
     }
 
-    const existing = await User.findOne({ email });
+    // Quick validation
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    // Check if email already exists (with index, this is fast)
+    const existing = await User.findOne({ email }).select("_id").lean();
     if (existing) {
       return res.status(409).json({ message: "Email already registered" });
     }
 
-    const salt = await bcrypt.genSalt(10);
+    // Use lower salt rounds for faster registration (8 instead of 10)
+    const salt = await bcrypt.genSalt(8);
     const passwordHash = await bcrypt.hash(password, salt);
 
     const user = await User.create({ name, email, passwordHash });
@@ -44,7 +54,7 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+passwordHash");
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -134,6 +144,59 @@ export const resetPassword = async (req, res) => {
   } catch (err) {
     console.error("Reset password error:", err);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const googleLogin = async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ message: "Google token is required" });
+    }
+
+    // Verify the Google token
+    const ticket = await google.verifyIdToken({
+      idToken: token,
+      audience: GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, name, picture } = payload;
+
+    // Check if user exists
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // Create new user from Google data
+      user = await User.create({
+        name: name || email.split("@")[0],
+        email,
+        passwordHash: null, // No password for OAuth users
+        googleId: payload.sub,
+        picture,
+      });
+    } else if (!user.googleId) {
+      // Update existing user with Google ID
+      user.googleId = payload.sub;
+      user.picture = picture;
+      await user.save();
+    }
+
+    // Generate JWT token
+    const jwtToken = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    res.json({
+      token: jwtToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        picture: user.picture,
+      },
+    });
+  } catch (err) {
+    console.error("Google login error:", err);
+    res.status(401).json({ message: "Invalid Google token" });
   }
 };
 

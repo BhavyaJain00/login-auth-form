@@ -63,9 +63,10 @@ a:hover {
 .app-main {
   flex: 1;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
   padding: 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 75%, #4facfe 100%);
 }
 
 .auth-card {
@@ -73,53 +74,63 @@ a:hover {
   max-width: 380px;
   margin: auto;
   background: #ffffff;
-  padding: 24px 28px;
-  border-radius: 10px;
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+  padding: 40px 32px;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 .auth-card h2 {
-  margin: 0 0 16px;
+  margin: 0 0 24px;
+  text-align: center;
+  font-size: 1.8rem;
+  color: #1f2933;
 }
 
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 label {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  color: #1f2933;
+  font-weight: 500;
 }
 
 input,
 textarea,
 select {
   font: inherit;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: 6px;
-  border: 1px solid #d1d5db;
+  border: none;
+  border-bottom: 2px solid #e5e7eb;
+  background: transparent;
+  font-size: 0.9rem;
 }
 
 input:focus,
 textarea:focus,
 select:focus {
-  outline: 2px solid #2563eb;
-  outline-offset: 1px;
-  border-color: transparent;
+  outline: none;
+  border-bottom-color: #667eea;
 }
 
 .primary-btn {
-  padding: 9px 14px;
+  padding: 11px 24px;
   border-radius: 999px;
   border: none;
-  background: #2563eb;
+  background: linear-gradient(90deg, #4facfe 0%, #00f2fe 50%, #f093fb 100%);
   color: white;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .primary-btn:disabled {
@@ -128,9 +139,58 @@ select:focus {
 }
 
 .auth-footer {
-  margin-top: 12px;
-  font-size: 0.85rem;
+  margin-top: 24px;
+  font-size: 0.82rem;
   color: #6b7280;
+  text-align: center;
+}
+
+.auth-footer p {
+  margin: 12px 0;
+}
+
+.auth-footer a {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.social-login {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.social-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 20px;
+  transition: transform 0.2s;
+}
+
+.social-btn:hover {
+  transform: scale(1.1);
+}
+
+.social-btn.facebook {
+  background: #3b5998;
+  color: white;
+}
+
+.social-btn.twitter {
+  background: #1da1f2;
+  color: white;
+}
+
+.social-btn.google {
+  background: #ea4335;
+  color: white;
 }
 
 .error-text {

@@ -12,6 +12,9 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
 
+console.log("MongoDB URI:", MONGO_URI);
+console.log("Port:", PORT);
+
 const allowedOrigins = [
   "http://localhost:5173",
   "https://login-auth-form-iqz3.vercel.app",
@@ -37,18 +40,32 @@ app.get("/", (_req, res) => {
   res.json({ message: "API is running" });
 });
 
+app.get("/health", (_req, res) => {
+  const mongoStatus = mongoose.connection.readyState === 1 ? "✅ Connected" : "❌ Disconnected";
+  res.json({
+    status: "API Healthy",
+    timestamp: new Date().toISOString(),
+    mongodb: mongoStatus,
+    port: PORT
+  });
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/forms", formRoutes);
 
 mongoose
-  .connect(MONGO_URI)
+  .connect(MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => {
-    console.log("MongoDB connected");
+    console.log("✅ MongoDB connected successfully");
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      console.log(`✅ Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.error("MongoDB connection error:", err.message);
+    console.error("❌ MongoDB connection error:", err.message);
+    console.error("Error details:", err);
     process.exit(1);
   });
