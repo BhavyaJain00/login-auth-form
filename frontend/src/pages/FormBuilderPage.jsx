@@ -647,6 +647,16 @@ export default function FormBuilderPage() {
             >
               Submissions
             </button>
+            <button
+              className="primary-btn"
+              onClick={() => {
+                localStorage.removeItem("token");
+                window.location.href = "/login";
+              }}
+              style={{ background: "#ef4444" }}
+            >
+              Logout
+            </button>
           </div>
         </div>
 

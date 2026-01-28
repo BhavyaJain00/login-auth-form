@@ -54,10 +54,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/forms", formRoutes);
 
 mongoose
-  .connect(MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected successfully");
     app.listen(PORT, () => {

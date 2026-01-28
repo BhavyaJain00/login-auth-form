@@ -104,8 +104,8 @@ export default function LoginPage() {
     >
       {error && <div className="error-text">{error}</div>}
       <label>
-        Username
-        <input type="email" placeholder="Type your username" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        Email
+        <input type="email" placeholder="Type your email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </label>
       <label>
         Password

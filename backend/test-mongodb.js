@@ -17,10 +17,7 @@ if (!MONGO_URI) {
 }
 
 mongoose
-  .connect(MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(MONGO_URI)
   .then(async () => {
     console.log("✅ Connected to MongoDB successfully!\n");
     
