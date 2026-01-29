@@ -1,28 +1,56 @@
 import express from "express";
 import {
-  saveForm,
-  getMyForms,
-  getForm,
-  deleteForm,
+  getUserAssignedForms,
+  getFormById,
+  getPublicForm,
   submitForm,
-  getFormSubmissions,
-  getMySubmissions,
-  updateMySubmission
+  submitPublicForm,
+  getUserSubmissions,
+  getUserSubmission,
+  listPublishedForms,
 } from "../controllers/form.controller.js";
-import { authMiddleware } from "../middleware/auth.middleware.js";
+import { verifyToken, requireUser } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(authMiddleware);
+/**
+ * PUBLIC ROUTES (No authentication required)
+ * These are defined OUTSIDE the middleware chain
+ * Must match first, then pass to authenticated routes
+ */
 
-router.post("/", saveForm);
-router.get("/", getMyForms);
-router.get("/submissions", getMySubmissions);
-router.patch("/submissions/:submissionId", updateMySubmission);
-router.get("/:id", getForm);
-router.delete("/:id", deleteForm);
-router.post("/:id/submit", submitForm);
-router.get("/:id/submissions", getFormSubmissions);
+// List all published forms (public)
+router.get("/public", listPublishedForms);
+
+// Get public form by token - MUST use exact path
+router.get("/public/:publicFormToken", getPublicForm);
+
+// Submit public form - MUST use exact path
+router.post("/public/submit", submitPublicForm);
+
+/**
+ * USER ROUTES (Authentication required)
+ * All other routes below require token verification
+ */
+
+// Apply token verification and user role check to all remaining routes
+router.use(verifyToken, requireUser);
+
+// Get all forms assigned to user
+router.get("/", getUserAssignedForms);
+
+// Get user's own submissions (MUST be before /:formId route for correct matching)
+router.get("/submissions/my", getUserSubmissions);
+
+// Get specific submission
+router.get("/submissions/:submissionId", getUserSubmission);
+
+// Get specific form (Keep this last as it's a catch-all parameter route)
+router.get("/:formId", getFormById);
+
+// Submit a form
+router.post("/:formId/submit", submitForm);
 
 export default router;
+
+

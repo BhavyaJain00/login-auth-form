@@ -1,238 +1,360 @@
 import Form from "../models/Form.js";
 import FormSubmission from "../models/FormSubmission.js";
+import User from "../models/User.js";
 
-// Save or update a form
-export const saveForm = async (req, res) => {
+/**
+ * USER FORM MANAGEMENT
+ * ====================
+ * Users can:
+ * - View forms assigned to them
+ * - Submit forms
+ * - View their own submissions
+ */
+
+/**
+ * Get forms assigned to the current user
+ * USER: Get only their assigned forms
+ */
+export const getUserAssignedForms = async (req, res) => {
   try {
-    const { title, description } = req.body;
-    let { fields } = req.body;
-    const userId = req.userId;
+    const userId = req.user.id;
 
-    if (!userId) {
-      return res.status(401).json({ message: "User not authenticated" });
-    }
+    // Get user and populate assigned forms
+    const user = await User.findById(userId).populate("assignedForms");
 
-    // Some clients may accidentally send fields as a JSON string (or as [ "<json>" ]).
-    // Normalize to an array of field objects.
-    if (typeof fields === "string") {
-      try {
-        fields = JSON.parse(fields);
-      } catch {
-        return res.status(400).json({ message: "Invalid fields JSON" });
-      }
-    }
-    if (Array.isArray(fields) && fields.length === 1 && typeof fields[0] === "string") {
-      try {
-        const parsed = JSON.parse(fields[0]);
-        if (Array.isArray(parsed)) fields = parsed;
-      } catch {
-        // ignore; validation below will catch it
-      }
-    }
-    if (!fields || !Array.isArray(fields)) {
-      return res.status(400).json({ message: "Fields array is required" });
-    }
-    // Normalize each field object
-    fields = fields.map((f) => {
-      if (typeof f === "string") {
-        try {
-          f = JSON.parse(f);
-        } catch {
-          return null;
-        }
-      }
-      if (!f || typeof f !== "object" || Array.isArray(f)) {
-        return null;
-      }
-      // Ensure required fields exist and normalize structure
-      return {
-        id: f.id || `f_${Date.now()}_${Math.random()}`,
-        type: f.type || "text",
-        label: f.label || "",
-        placeholder: f.placeholder || "",
-        options: Array.isArray(f.options) ? f.options : [],
-        required: f.required === true,
-        defaultValue: f.defaultValue || "",
-        min: f.min !== undefined && f.min !== null && f.min !== "" ? Number(f.min) : undefined,
-        max: f.max !== undefined && f.max !== null && f.max !== "" ? Number(f.max) : undefined,
-        minLength: f.minLength !== undefined && f.minLength !== null && f.minLength !== "" ? Number(f.minLength) : undefined,
-        maxLength: f.maxLength !== undefined && f.maxLength !== null && f.maxLength !== "" ? Number(f.maxLength) : undefined,
-        minDate: f.minDate || undefined,
-        maxDate: f.maxDate || undefined,
-        pattern: f.pattern || undefined
-      };
-    }).filter(Boolean); // Remove any null/invalid fields
-    
-    if (fields.length === 0) {
-      return res.status(400).json({ message: "At least one valid field is required" });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
     }
 
-    const formData = {
-      title: title || "Untitled Form",
-      description: description || "",
-      fields,
-      createdBy: userId
-    };
-
-    // If formId is provided, update existing form
-    if (req.body.formId) {
-      const form = await Form.findOneAndUpdate(
-        { _id: req.body.formId, createdBy: userId },
-        formData,
-        { new: true }
-      );
-      if (!form) {
-        return res.status(404).json({ message: "Form not found" });
-      }
-      return res.json(form);
-    }
-
-    // Otherwise, create new form
-    const form = new Form(formData);
-    await form.save();
-    res.status(201).json(form);
-  } catch (error) {
-    console.error("Save form error:", error);
-    console.error("Error details:", {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      body: req.body
+    return res.status(200).json({
+      success: true,
+      message: "Assigned forms retrieved successfully.",
+      count: user.assignedForms.length,
+      forms: user.assignedForms,
     });
-    res.status(500).json({ 
-      message: error.message || "Failed to save form",
-      error: process.env.NODE_ENV === "development" ? error.stack : undefined
+  } catch (error) {
+    console.error("Get user assigned forms error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving assigned forms.",
+      error: error.message,
     });
   }
 };
 
-// Get all forms for the current user
-export const getMyForms = async (req, res) => {
+/**
+ * Get a specific form by ID
+ * USER: Can only access forms assigned to them
+ */
+export const getFormById = async (req, res) => {
   try {
-    const userId = req.userId;
-    const forms = await Form.find({ createdBy: userId }).sort({ createdAt: -1 });
-    res.json(forms);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    const userId = req.user.id;
+    const { formId } = req.params;
 
-// Get a single form by ID
-export const getForm = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const form = await Form.findById(id);
+    // Get form
+    const form = await Form.findById(formId);
+
     if (!form) {
-      return res.status(404).json({ message: "Form not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Form not found.",
+      });
     }
-    res.json(form);
+
+    // TENANT ISOLATION: Verify user has access to this form
+    const user = await User.findById(userId);
+    const hasAccess = user.assignedForms.some(id => id.toString() === formId.toString());
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have access to this form.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Form retrieved successfully.",
+      form,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get form by ID error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving form.",
+      error: error.message,
+    });
   }
 };
 
-// Delete a form
-export const deleteForm = async (req, res) => {
+/**
+ * Get public form by token (no auth required)
+ */
+export const getPublicForm = async (req, res) => {
   try {
-    const { id } = req.params;
-    const userId = req.userId;
-    const form = await Form.findOneAndDelete({ _id: id, createdBy: userId });
+    const { publicFormToken } = req.params;
+
+    const form = await Form.findOne({ publicFormToken, isPublished: true });
+
     if (!form) {
-      return res.status(404).json({ message: "Form not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Form not found or not published.",
+      });
     }
-    // Also delete all submissions for this form
-    await FormSubmission.deleteMany({ formId: id });
-    res.json({ message: "Form deleted successfully" });
+
+    return res.status(200).json({
+      success: true,
+      message: "Public form retrieved successfully.",
+      form: {
+        id: form._id,
+        title: form.title,
+        description: form.description,
+        fields: form.fields,
+        isPublished: form.isPublished,
+      },
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get public form error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving public form.",
+      error: error.message,
+    });
   }
 };
 
-// Submit form data
+/**
+ * List all published forms (public)
+ */
+export const listPublishedForms = async (req, res) => {
+  try {
+    const forms = await Form.find({ isPublished: true }).select("title description publicFormToken").sort({ createdAt: -1 });
+    return res.status(200).json({
+      success: true,
+      message: "Published forms retrieved successfully.",
+      count: forms.length,
+      forms,
+    });
+  } catch (error) {
+    console.error("List published forms error:", error);
+    return res.status(500).json({ success: false, message: "Error retrieving published forms.", error: error.message });
+  }
+};
+
+/**
+ * Submit a form (USER)
+ * Creates a new submission record
+ */
 export const submitForm = async (req, res) => {
   try {
-    const { formId, data } = req.body;
-    const userId = req.userId;
+    const userId = req.user.id;
+    const { formId, answers } = req.body;
 
-    if (!formId || !data) {
-      return res.status(400).json({ message: "Form ID and data are required" });
+    if (!formId || !answers) {
+      return res.status(400).json({
+        success: false,
+        message: "Form ID and answers are required.",
+      });
     }
 
-    // Verify form exists
+    // Get form and verify user has access
     const form = await Form.findById(formId);
+
     if (!form) {
-      return res.status(404).json({ message: "Form not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Form not found.",
+      });
     }
 
+    // TENANT ISOLATION: Verify user can access this form
+    const user = await User.findById(userId);
+    const hasAccess = user.assignedForms.some(id => id.toString() === formId.toString());
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have access to submit this form.",
+      });
+    }
+
+    // Create submission
     const submission = new FormSubmission({
       formId,
-      submittedBy: userId,
-      data
+      userId,
+      adminId: user.adminId, // TENANT ISOLATION: Record which admin owns this submission
+      answers,
+      submissionStatus: "submitted",
     });
+
     await submission.save();
-    res.status(201).json(submission);
+
+    // Increment submission count
+    form.submission_count = (form.submission_count || 0) + 1;
+    await form.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "Form submitted successfully.",
+      submission,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Submit form error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error submitting form.",
+      error: error.message,
+    });
   }
 };
 
-// Get all submissions for a form
-export const getFormSubmissions = async (req, res) => {
+/**
+ * Submit public form (no auth required)
+ */
+export const submitPublicForm = async (req, res) => {
   try {
-    const { formId } = req.params;
-    const userId = req.userId;
+    const { publicFormToken, answers, email } = req.body;
 
-    // Verify form belongs to user
-    const form = await Form.findOne({ _id: formId, createdBy: userId });
-    if (!form) {
-      return res.status(404).json({ message: "Form not found" });
+    if (!publicFormToken || !answers) {
+      return res.status(400).json({
+        success: false,
+        message: "Form token and answers are required.",
+      });
     }
 
-    const submissions = await FormSubmission.find({ formId })
-      .populate("submittedBy", "name email")
-      .sort({ createdAt: -1 });
-    res.json(submissions);
+    // Get form
+    const form = await Form.findOne({ publicFormToken, isPublished: true });
+
+    if (!form) {
+      return res.status(404).json({
+        success: false,
+        message: "Form not found or not published.",
+      });
+    }
+
+    // Check submission limit
+    if (form.publicFormSettings.submissionLimit) {
+      const submissionCount = await FormSubmission.countDocuments({ formId: form._id });
+      if (submissionCount >= form.publicFormSettings.submissionLimit) {
+        return res.status(400).json({
+          success: false,
+          message: "This form has reached its submission limit.",
+        });
+      }
+    }
+
+    // Find or create user for public submission
+    let user = await User.findOne({ email: email?.toLowerCase() });
+
+    if (!user) {
+      user = new User({
+        username: email.split("@")[0] + "_" + Date.now(),
+        email: email?.toLowerCase(),
+        adminId: form.createdByAdminId,
+        role: "USER",
+        assignedForms: [form._id],
+      });
+      await user.save();
+    }
+
+    // Create submission
+    const submission = new FormSubmission({
+      formId: form._id,
+      userId: user._id,
+      adminId: form.createdByAdminId,
+      answers,
+      submissionStatus: "submitted",
+    });
+
+    await submission.save();
+
+    // Increment submission count
+    form.submission_count = (form.submission_count || 0) + 1;
+    await form.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "Form submitted successfully.",
+      submission,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Submit public form error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error submitting form.",
+      error: error.message,
+    });
   }
 };
 
-// Get all submissions for current user
-export const getMySubmissions = async (req, res) => {
+/**
+ * Get user's own submissions (TENANT ISOLATION)
+ */
+export const getUserSubmissions = async (req, res) => {
   try {
-    const userId = req.userId;
-    const submissions = await FormSubmission.find({ submittedBy: userId })
+    const userId = req.user.id;
+
+    const submissions = await FormSubmission.find({ userId })
       .populate("formId", "title")
       .sort({ createdAt: -1 });
-    res.json(submissions);
+
+    return res.status(200).json({
+      success: true,
+      message: "Your submissions retrieved successfully.",
+      count: submissions.length,
+      submissions,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get user submissions error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving submissions.",
+      error: error.message,
+    });
   }
 };
 
-// Update a submission (submitted data) for current user
-export const updateMySubmission = async (req, res) => {
+/**
+ * Get a specific submission (USER can only see their own)
+ */
+export const getUserSubmission = async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.user.id;
     const { submissionId } = req.params;
-    const { data } = req.body;
 
-    if (!data || typeof data !== "object") {
-      return res.status(400).json({ message: "Submission data is required" });
-    }
-
-    const submission = await FormSubmission.findOneAndUpdate(
-      { _id: submissionId, submittedBy: userId },
-      { data },
-      { new: true }
-    ).populate("formId", "title");
+    const submission = await FormSubmission.findById(submissionId)
+      .populate("formId", "title fields")
+      .populate("userId", "username email");
 
     if (!submission) {
-      return res.status(404).json({ message: "Submission not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Submission not found.",
+      });
     }
 
-    return res.json(submission);
+    // TENANT ISOLATION: Verify user is viewing their own submission
+    if (submission.userId._id.toString() !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only view your own submissions.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Submission retrieved successfully.",
+      submission,
+    });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error("Get user submission error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving submission.",
+      error: error.message,
+    });
   }
 };
+

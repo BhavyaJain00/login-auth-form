@@ -12,3 +12,5 @@ backend/.env
 
 # logs
 npm-debug.log*
+.env.local
+nul

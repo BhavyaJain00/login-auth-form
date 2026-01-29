@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import authRoutes from "./routes/auth.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
 import formRoutes from "./routes/form.routes.js";
 
 dotenv.config();
@@ -16,7 +17,12 @@ console.log("MongoDB URI:", MONGO_URI);
 console.log("Port:", PORT);
 
 const allowedOrigins = [
+  "http://localhost:3000",
   "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:5176",
+  "http://localhost:5177",
   "https://login-auth-form-iqz3.vercel.app",
 ];
 
@@ -50,7 +56,9 @@ app.get("/health", (_req, res) => {
   });
 });
 
+// Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/forms", formRoutes);
 
 mongoose
@@ -66,3 +74,4 @@ mongoose
     console.error("Error details:", err);
     process.exit(1);
   });
+

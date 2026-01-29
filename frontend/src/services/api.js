@@ -43,8 +43,12 @@ export const resetPassword = (payload) =>
   api.post("/api/auth/reset-password", payload);
 
 // FORMS
-export const saveForm = (payload) =>
-  api.post("/api/forms", payload);
+// NOTE: Creating/updating forms is an admin-only operation on the server.
+// The backend exposes admin create/update under `/api/admin/forms/*`.
+// Keep this function for compatibility but throw an explicit error to
+// prevent accidental calls from user-facing code.
+export const saveForm = (_payload) =>
+  Promise.reject(new Error("saveForm is admin-only. Use adminCreateForm/adminUpdateForm as an admin."));
 
 export const getMyForms = () =>
   api.get("/api/forms");
@@ -52,19 +56,45 @@ export const getMyForms = () =>
 export const getForm = (id) =>
   api.get(`/api/forms/${id}`);
 
+// Public form access
+export const getPublicForm = (publicFormToken) =>
+  api.get(`/api/forms/public/${publicFormToken}`);
+
+export const submitPublicForm = (publicFormToken, answers) =>
+  api.post(`/api/forms/public/submit`, { publicFormToken, answers });
+
 export const deleteForm = (id) =>
   api.delete(`/api/forms/${id}`);
 
 export const submitForm = (formId, data) =>
-  api.post(`/api/forms/${formId}/submit`, { formId, data });
+  api.post(`/api/forms/${formId}/submit`, { formId, answers: data });
 
 export const getMySubmissions = () =>
-  api.get("/api/forms/submissions");
+  api.get("/api/forms/submissions/my");
 
 export const getFormSubmissions = (formId) =>
   api.get(`/api/forms/${formId}/submissions`);
 
 export const updateMySubmission = (submissionId, data) =>
   api.patch(`/api/forms/submissions/${submissionId}`, { data });
+
+// ADMIN FORM MANAGEMENT
+export const adminGetForms = () =>
+  api.get("/api/admin/forms");
+
+export const adminGetForm = (id) =>
+  api.get(`/api/admin/forms/${id}`);
+
+export const adminCreateForm = (payload) =>
+  api.post("/api/admin/forms/create", payload);
+
+export const adminUpdateForm = (id, payload) =>
+  api.put(`/api/admin/forms/${id}`, payload);
+
+export const adminDeleteForm = (id) =>
+  api.delete(`/api/admin/forms/${id}`);
+
+// Public published forms
+export const getPublishedForms = () => api.get("/api/forms/public");
 
 export default api;

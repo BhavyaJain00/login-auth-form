@@ -1,22 +1,31 @@
 import express from "express";
 import {
-  registerUser,
-  loginUser,
-  getMe,
-  requestPasswordReset,
-  resetPassword,
-  googleLogin
+  adminSignup,
+  adminLogin,
+  userLogin,
+  publicFormLogin,
 } from "../controllers/auth.controller.js";
-import { authMiddleware } from "../middleware/auth.middleware.js";
+import { verifyToken, requireAdmin, requireUser } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/register", registerUser);
-router.post("/login", loginUser);
-router.post("/google-login", googleLogin);
-router.get("/me", authMiddleware, getMe);
-router.post("/forgot-password", requestPasswordReset);
-router.post("/reset-password", resetPassword);
+/**
+ * ADMIN ROUTES
+ */
+router.post("/admin/signup", adminSignup);
+router.post("/admin/login", adminLogin);
+
+/**
+ * USER ROUTES
+ */
+router.post("/user/login", userLogin);
+
+/**
+ * PUBLIC FORM LOGIN
+ * Used when non-logged-in user accesses public form link
+ */
+router.post("/public-form/login", publicFormLogin);
 
 export default router;
+
 

@@ -1,18 +1,21 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
-const userSchema = new mongoose.Schema(
+const adminSchema = new mongoose.Schema(
   {
     username: {
       type: String,
       required: true,
+      unique: true,
       trim: true,
       lowercase: true,
       minlength: 3,
+      index: true,
     },
     email: {
       type: String,
       required: true,
+      unique: true,
       lowercase: true,
       trim: true,
       index: true,
@@ -24,23 +27,9 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["USER"],
-      default: "USER",
+      enum: ["ADMIN"],
+      default: "ADMIN",
     },
-    // TENANT ISOLATION: Each user belongs to a specific admin
-    adminId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Admin",
-      required: true,
-      index: true,
-    },
-    // Forms assigned to this user
-    assignedForms: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Form",
-      },
-    ],
     isActive: {
       type: Boolean,
       default: true,
@@ -50,7 +39,8 @@ const userSchema = new mongoose.Schema(
 );
 
 // Hash password before saving
-userSchema.pre("save", async function (next) {
+adminSchema.pre("save", async function (next) {
+  // Only hash if password is new or modified
   if (!this.isModified("passwordHash")) {
     return next();
   }
@@ -65,12 +55,10 @@ userSchema.pre("save", async function (next) {
 });
 
 // Method to compare passwords
-userSchema.methods.comparePassword = async function (password) {
+adminSchema.methods.comparePassword = async function (password) {
   return await bcrypt.compare(password, this.passwordHash);
 };
 
-const User = mongoose.model("User", userSchema);
+const Admin = mongoose.model("Admin", adminSchema);
 
-export default User;
-
-
+export default Admin;

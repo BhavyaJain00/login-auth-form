@@ -1,202 +1,328 @@
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import crypto from "crypto";
-import { OAuth2Client } from "google-auth-library";
-
+import Admin from "../models/Admin.js";
 import User from "../models/User.js";
-import { sendResetEmail } from "../utils/email.js";
+import Form from "../models/Form.js";
+import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
-const JWT_EXPIRES_IN = "7d";
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const google = new OAuth2Client(GOOGLE_CLIENT_ID);
+const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_key_change_in_production";
+const JWT_EXPIRY = "7d";
 
-export const registerUser = async (req, res) => {
+/**
+ * ADMIN REGISTRATION
+ * On first signup, user becomes ADMIN (tenant owner)
+ * Multiple ADMINs can exist independently with their own tenants
+ */
+export const adminSignup = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "Name, email and password are required" });
+    const { username, email, password, passwordConfirm } = req.body;
+
+    // Validation
+    if (!username || !email || !password || !passwordConfirm) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required.",
+      });
     }
 
-    // Quick validation
+    if (password !== passwordConfirm) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match.",
+      });
+    }
+
     if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters long.",
+      });
     }
 
-    // Check if email already exists (with index, this is fast)
-    const existing = await User.findOne({ email }).select("_id").lean();
-    if (existing) {
-      return res.status(409).json({ message: "Email already registered" });
-    }
-
-    // Use lower salt rounds for faster registration (8 instead of 10)
-    const salt = await bcrypt.genSalt(8);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    const user = await User.create({ name, email, passwordHash });
-
-    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-
-    res.status(201).json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email }
+    // Check if email/username already exists
+    const existingAdmin = await Admin.findOne({
+      $or: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }],
     });
-  } catch (err) {
-    console.error("Register error:", err);
-    res.status(500).json({ message: "Server error" });
+
+    if (existingAdmin) {
+      return res.status(400).json({
+        success: false,
+        message: "Email or username already registered as ADMIN.",
+      });
+    }
+
+    // Create new admin
+    const newAdmin = new Admin({
+      username: username.toLowerCase().trim(),
+      email: email.toLowerCase().trim(),
+      passwordHash: password,
+      role: "ADMIN",
+    });
+
+    await newAdmin.save();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: newAdmin._id,
+        username: newAdmin.username,
+        email: newAdmin.email,
+        role: newAdmin.role,
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Admin registered successfully.",
+      token,
+      admin: {
+        id: newAdmin._id,
+        username: newAdmin.username,
+        email: newAdmin.email,
+        role: newAdmin.role,
+      },
+    });
+  } catch (error) {
+    console.error("Admin signup error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error during signup.",
+      error: error.message,
+    });
   }
 };
 
-export const loginUser = async (req, res) => {
+/**
+ * ADMIN LOGIN
+ */
+export const adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
+
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
-    }
-
-    const user = await User.findOne({ email }).select("+passwordHash");
-    if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email }
-    });
-  } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-export const getMe = async (req, res) => {
-  try {
-    const user = await User.findById(req.userId).select("-passwordHash -resetToken -resetTokenExpiry");
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    res.json({ user });
-  } catch (err) {
-    console.error("GetMe error:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-export const requestPasswordReset = async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      // Don't reveal if email exists
-      return res.json({ message: "If that email exists, a reset link has been sent" });
-    }
-
-    const token = crypto.randomBytes(32).toString("hex");
-    const expiry = new Date(Date.now() + 1000 * 60 * 30); // 30 minutes
-
-    user.resetToken = token;
-    user.resetTokenExpiry = expiry;
-    await user.save();
-
-    await sendResetEmail(email, token);
-
-    res.json({ message: "If that email exists, a reset link has been sent" });
-  } catch (err) {
-    console.error("Request reset error:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-export const resetPassword = async (req, res) => {
-  try {
-    const { token, password } = req.body;
-    if (!token || !password) {
-      return res.status(400).json({ message: "Token and new password are required" });
-    }
-
-    const user = await User.findOne({
-      resetToken: token,
-      resetTokenExpiry: { $gt: new Date() }
-    });
-
-    if (!user) {
-      return res.status(400).json({ message: "Token is invalid or has expired" });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    user.passwordHash = await bcrypt.hash(password, salt);
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
-    await user.save();
-
-    res.json({ message: "Password has been reset" });
-  } catch (err) {
-    console.error("Reset password error:", err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-export const googleLogin = async (req, res) => {
-  try {
-    const { token } = req.body;
-    if (!token) {
-      return res.status(400).json({ message: "Google token is required" });
-    }
-
-    // Verify the Google token
-    const ticket = await google.verifyIdToken({
-      idToken: token,
-      audience: GOOGLE_CLIENT_ID,
-    });
-
-    const payload = ticket.getPayload();
-    const { email, name, picture } = payload;
-
-    // Check if user exists
-    let user = await User.findOne({ email });
-
-    if (!user) {
-      // Create new user from Google data
-      user = await User.create({
-        name: name || email.split("@")[0],
-        email,
-        passwordHash: null, // No password for OAuth users
-        googleId: payload.sub,
-        picture,
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required.",
       });
-    } else if (!user.googleId) {
-      // Update existing user with Google ID
-      user.googleId = payload.sub;
-      user.picture = picture;
-      await user.save();
+    }
+
+    // Find admin and select password for comparison
+    const admin = await Admin.findOne({ email: email.toLowerCase() }).select("+passwordHash");
+
+    if (!admin) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
+    }
+
+    // Compare password
+    const passwordMatch = await admin.comparePassword(password);
+
+    if (!passwordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
     }
 
     // Generate JWT token
-    const jwtToken = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const token = jwt.sign(
+      {
+        id: admin._id,
+        username: admin.username,
+        email: admin.email,
+        role: admin.role,
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
 
-    res.json({
-      token: jwtToken,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        picture: user.picture,
+    return res.status(200).json({
+      success: true,
+      message: "Admin logged in successfully.",
+      token,
+      admin: {
+        id: admin._id,
+        username: admin.username,
+        email: admin.email,
+        role: admin.role,
       },
     });
-  } catch (err) {
-    console.error("Google login error:", err);
-    res.status(401).json({ message: "Invalid Google token" });
+  } catch (error) {
+    console.error("Admin login error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error during login.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * USER LOGIN
+ */
+export const userLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required.",
+      });
+    }
+
+    // Find user and select password for comparison
+    const user = await User.findOne({ email: email.toLowerCase() })
+      .select("+passwordHash")
+      .populate("adminId", "username email");
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
+    }
+
+    // Compare password
+    const passwordMatch = await user.comparePassword(password);
+
+    if (!passwordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password.",
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        adminId: user.adminId._id,
+        assignedForms: user.assignedForms,
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "User logged in successfully.",
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        adminId: user.adminId._id,
+      },
+    });
+  } catch (error) {
+    console.error("User login error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error during login.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * PUBLIC FORM LOGIN
+ * When a non-logged-in user opens a public form link
+ * After login, user is attached to that form's admin
+ */
+export const publicFormLogin = async (req, res) => {
+  try {
+    const { email, password, publicFormToken } = req.body;
+
+    if (!email || !password || !publicFormToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Email, password, and form token are required.",
+      });
+    }
+
+    // Find the form to get admin
+    const form = await Form.findOne({ publicFormToken });
+
+    if (!form) {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid form token.",
+      });
+    }
+
+    // Find or create user with this email
+    let user = await User.findOne({ email: email.toLowerCase() }).select("+passwordHash");
+
+    if (!user) {
+      // Create new user attached to this form's admin
+      user = new User({
+        username: email.split("@")[0] + "_" + Date.now(),
+        email: email.toLowerCase(),
+        passwordHash: password,
+        adminId: form.createdByAdminId,
+        role: "USER",
+        assignedForms: [form._id],
+      });
+
+      await user.save();
+    } else {
+      // User exists - verify password and add form to assigned forms if not already
+      const passwordMatch = await user.comparePassword(password);
+
+      if (!passwordMatch) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid email or password.",
+        });
+      }
+
+      // Add form to assigned forms if not already assigned
+      if (!user.assignedForms.includes(form._id)) {
+        user.assignedForms.push(form._id);
+        await user.save();
+      }
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        adminId: user.adminId._id,
+        assignedForms: user.assignedForms,
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "User logged in successfully.",
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        adminId: user.adminId._id,
+      },
+    });
+  } catch (error) {
+    console.error("Public form login error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error during public form login.",
+      error: error.message,
+    });
   }
 };
 

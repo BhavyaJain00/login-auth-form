@@ -1,68 +1,101 @@
-import { Routes, Route, Navigate, Link } from "react-router-dom";
-import LoginPage from "./pages/LoginPage.jsx";
-import RegisterPage from "./pages/RegisterPage.jsx";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
-import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
-import FormBuilderPage from "./pages/FormBuilderPage.jsx";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "./context/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
-const isAuthenticated = () => {
-  return Boolean(localStorage.getItem("token"));
-};
+// Pages
+import AdminLoginPage from "./pages/AdminLoginPage";
+import AdminSignupPage from "./pages/AdminSignupPage";
+import UserLoginPage from "./pages/UserLoginPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
+import UserDashboardPage from "./pages/UserDashboardPage";
+import FormBuilderPage from "./pages/FormBuilderPage";
+import MySubmissionsPage from "./pages/MySubmissionsPage";
+import PublishedFormsPage from "./pages/PublishedFormsPage";
+import PublicFormPage from "./pages/PublicFormPage";
 
-const ProtectedRoute = ({ children }) => {
-  if (!isAuthenticated()) {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-};
+/**
+ * ROOT ROUTING LOGIC
+ * 
+ * ADMIN ROUTES:
+ * - /admin/signup - Create admin account (first signup becomes ADMIN)
+ * - /admin/login - Admin login
+ * - /admin/dashboard - Admin dashboard (manage users, forms, submissions)
+ * - /admin/forms/:formId/edit - Form builder
+ * 
+ * USER ROUTES:
+ * - /user/login - User login (created by admin)
+ * - /user/dashboard - User dashboard (view assigned forms)
+ * - /user/forms/:formId - Fill out form
+ * - /user/submissions - View own submissions
+ * 
+ * PUBLIC ROUTES:
+ * - /form/:publicFormToken - Public form link (no auth required)
+ * - / - Redirect to login
+ */
 
 export default function App() {
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <Link to="/" className="logo">
-          FormBuilder
-        </Link>
-        <nav>
-          {isAuthenticated() ? (
-            <>
-              <Link to="/builder">Form Builder</Link>
-              <button
-                className="link-button"
-                onClick={() => {
-                  localStorage.removeItem("token");
-                  window.location.href = "/login";
-                }}
-              >
-                Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <Link to="/login">Login</Link>
-              <Link to="/register">Register</Link>
-            </>
-          )}
-        </nav>
-      </header>
-      <main className="app-main">
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route
-            path="/builder"
-            element={
-              <ProtectedRoute>
-                <FormBuilderPage />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </main>
-    </div>
+    <AuthProvider>
+      <Routes>
+        {/* LANDING / DEFAULT REDIRECT */}
+        <Route path="/" element={<Navigate to="/admin/login" replace />} />
+
+        {/* ADMIN ROUTES */}
+        <Route path="/admin/signup" element={<AdminSignupPage />} />
+        <Route path="/admin/login" element={<AdminLoginPage />} />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/forms/:formId/edit"
+          element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <FormBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* USER ROUTES */}
+        <Route path="/user/login" element={<UserLoginPage />} />
+        <Route
+          path="/user/dashboard"
+          element={
+            <ProtectedRoute requiredRole="USER">
+              <UserDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user/forms/:formId"
+          element={
+            <ProtectedRoute requiredRole="USER">
+              <FormBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user/submissions"
+          element={
+            <ProtectedRoute requiredRole="USER">
+              <MySubmissionsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* PUBLIC PUBLISHED FORMS */}
+        <Route path="/forms/published" element={<PublishedFormsPage />} />
+        <Route path="/form/:publicFormToken" element={<PublicFormPage />} />
+
+        {/* FALLBACK */}
+        <Route path="*" element={<Navigate to="/admin/login" replace />} />
+      </Routes>
+    </AuthProvider>
   );
 }
+
 

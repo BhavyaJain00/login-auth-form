@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useParams } from "react-router-dom";
 import {
   saveForm,
   getMyForms,
@@ -6,7 +8,13 @@ import {
   deleteForm,
   submitForm,
   getMySubmissions,
-  updateMySubmission
+  getFormSubmissions,
+  updateMySubmission,
+  adminGetForms,
+  adminGetForm,
+  adminCreateForm,
+  adminUpdateForm,
+  adminDeleteForm
 } from "../services/api.js";
 
 const PALETTE_FIELDS = [
@@ -28,6 +36,10 @@ const PALETTE_FIELDS = [
 let idCounter = 1;
 
 export default function FormBuilderPage() {
+  const { user } = useAuth();
+  const { formId } = useParams();  // Get formId from URL
+  const isAdmin = user?.role === "ADMIN";
+  
   const [mode, setMode] = useState("builder"); // "builder" or "submissions"
   const [fields, setFields] = useState([]);
   const [formValues, setFormValues] = useState({}); // Store actual form input values
@@ -37,6 +49,7 @@ export default function FormBuilderPage() {
   const [currentFormId, setCurrentFormId] = useState(null);
   const [savedForms, setSavedForms] = useState([]);
   const [submissions, setSubmissions] = useState([]);
+  const [formSubmissions, setFormSubmissions] = useState([]);
   const [submissionFormFilter, setSubmissionFormFilter] = useState("all");
   const [editingSubmissionId, setEditingSubmissionId] = useState(null);
   const [editingSubmissionData, setEditingSubmissionData] = useState({});
@@ -44,27 +57,70 @@ export default function FormBuilderPage() {
   const [message, setMessage] = useState("");
   const [theme, setTheme] = useState("light"); // "light" or "dark"
 
-  // Load user's forms and submissions on mount
+  // Load form if editing an existing form (formId in URL)
   useEffect(() => {
-    loadForms();
-    loadSubmissions();
-  }, []);
+    if (formId) {
+      loadFormForEditing(formId);
+    } else {
+      loadForms();
+      if (!isAdmin) {
+        loadSubmissions();
+      }
+    }
+  }, [formId, isAdmin]);
+
+  const loadFormForEditing = async (id) => {
+    try {
+      setLoading(true);
+      const apiCall = isAdmin ? adminGetForm : getForm;
+      const { data } = await apiCall(id);
+      const formData = data.form || data;
+      
+      // Normalize fields
+      const normalizedFields = (formData.fields || []).map((f) => ({
+        ...f,
+        required: f.required || false,
+        defaultValue: f.defaultValue || "",
+        options: f.options || [],
+        min: f.min || undefined,
+        max: f.max || undefined,
+        minLength: f.minLength || undefined,
+        maxLength: f.maxLength || undefined,
+        minDate: f.minDate || undefined,
+        maxDate: f.maxDate || undefined
+      }));
+      
+      setFields(normalizedFields);
+      setFormTitle(formData.title || "Form 1");
+      setFormDescription(formData.description || "");
+      setCurrentFormId(formData._id);
+      setMessage("Form loaded for editing");
+      setTimeout(() => setMessage(""), 2000);
+    } catch (error) {
+      setMessage("Failed to load form for editing: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadForms = async () => {
     try {
-      const { data } = await getMyForms();
-      setSavedForms(data);
+      const apiCall = isAdmin ? adminGetForms : getMyForms;
+      const { data } = await apiCall();
+      setSavedForms(data.forms || []);
     } catch (error) {
       console.error("Failed to load forms:", error);
+      setSavedForms([]);
     }
   };
 
   const loadSubmissions = async () => {
     try {
       const { data } = await getMySubmissions();
-      setSubmissions(data);
+      setSubmissions(data.submissions || []);
     } catch (error) {
       console.error("Failed to load submissions:", error);
+      setSubmissions([]);
     }
   };
 
@@ -172,13 +228,35 @@ export default function FormBuilderPage() {
     setLoading(true);
     setMessage("");
     try {
-      const { data } = await saveForm({
-        formId: currentFormId,
-        title: formTitle,
-        description: formDescription,
-        fields
-      });
-      setCurrentFormId(data._id);
+      let apiCall, payload;
+      
+      if (isAdmin) {
+        if (currentFormId) {
+          // Update existing form
+          apiCall = adminUpdateForm;
+          payload = currentFormId;
+        } else {
+          // Create new form
+          apiCall = adminCreateForm;
+          payload = {
+            title: formTitle,
+            description: formDescription,
+            fields
+          };
+        }
+      } else {
+        // Regular users are not permitted to create/update forms on the server.
+        // The backend does not expose POST /api/forms — only admins may create forms.
+        setMessage("Only admins can create or save forms.");
+        setLoading(false);
+        return;
+      }
+
+      const { data } = isAdmin && currentFormId ? 
+        await apiCall(payload, { title: formTitle, description: formDescription, fields }) :
+        await apiCall(payload);
+      
+      setCurrentFormId(data.form?._id || data._id);
       setMessage("Form saved successfully!");
       await loadForms();
       setTimeout(() => setMessage(""), 3000);
@@ -215,9 +293,11 @@ export default function FormBuilderPage() {
 
   const handleLoadForm = async (formId) => {
     try {
-      const { data } = await getForm(formId);
+      const apiCall = isAdmin ? adminGetForm : getForm;
+      const { data } = await apiCall(formId);
+      const formData = data.form || data;
       // Ensure all fields have default properties
-      const normalizedFields = (data.fields || []).map((f) => ({
+      const normalizedFields = (formData.fields || []).map((f) => ({
         ...f,
         required: f.required || false,
         defaultValue: f.defaultValue || "",
@@ -230,9 +310,11 @@ export default function FormBuilderPage() {
         maxDate: f.maxDate || undefined
       }));
       setFields(normalizedFields);
-      setFormTitle(data.title || "Form 1");
-      setFormDescription(data.description || "");
-      setCurrentFormId(data._id);
+      setFormTitle(formData.title || "Form 1");
+      setFormDescription(formData.description || "");
+      setCurrentFormId(formData._id);
+      // load submissions for this form (only current user's submissions)
+      await loadFormSubmissions(formData._id);
       // Initialize form values with default values
       const initialValues = {};
       normalizedFields.forEach((f) => {
@@ -247,10 +329,24 @@ export default function FormBuilderPage() {
     }
   };
 
+  const loadFormSubmissions = async (formId) => {
+    try {
+      // get current user's submissions then filter by form id
+      const { data } = await getMySubmissions();
+      const mine = data.submissions || [];
+      const filtered = mine.filter((s) => (s.formId?._id || s.formId) === formId);
+      setFormSubmissions(filtered);
+    } catch (err) {
+      console.error("Failed to load form submissions", err);
+      setFormSubmissions([]);
+    }
+  };
+
   const handleDeleteSavedForm = async (formId) => {
     if (!confirm("Are you sure you want to delete this form?")) return;
     try {
-      await deleteForm(formId);
+      const apiCall = isAdmin ? adminDeleteForm : deleteForm;
+      await apiCall(formId);
       await loadForms();
       if (currentFormId === formId) {
         setFields([]);
@@ -263,6 +359,41 @@ export default function FormBuilderPage() {
       setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       setMessage(error.response?.data?.message || "Failed to delete form");
+    }
+  };
+
+  const handlePublishForm = async () => {
+    if (!currentFormId) {
+      setMessage("Please save the form first before publishing");
+      return;
+    }
+    
+    if (!isAdmin) {
+      setMessage("Only admins can publish forms");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/forms/${currentFormId}/publish`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to publish form");
+
+      setMessage(`Form published! Public link: ${data.publicLink}`);
+      await loadForms();
+      setTimeout(() => setMessage(""), 5000);
+    } catch (error) {
+      setMessage(error.message || "Failed to publish form");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -298,16 +429,40 @@ export default function FormBuilderPage() {
           />
         );
       case "checkbox":
+        // If options present, render a checkbox group (multiple selections)
+        if ((field.options || []).length > 0) {
+          const selected = Array.isArray(formValues[field.id]) ? formValues[field.id] : [];
+          return (
+            <div className="checkbox-group">
+              {(field.options || []).map((opt, idx) => (
+                <label key={idx} className="checkbox-option">
+                  <input
+                    type="checkbox"
+                    name={`${field.id}-${idx}`}
+                    value={opt}
+                    checked={selected.includes(opt)}
+                    onChange={(e) => {
+                      const next = new Set(selected);
+                      if (e.target.checked) next.add(opt); else next.delete(opt);
+                      handleFormValueChange(field.id, Array.from(next));
+                    }}
+                  />
+                  <span>{opt}</span>
+                </label>
+              ))}
+            </div>
+          );
+        }
+        // Single checkbox (boolean)
         return (
-          <div className="checkbox-row">
+          <label className="checkbox-single">
             <input
               type="checkbox"
-              checked={value === true || value === "true"}
+              checked={Boolean(formValues[field.id])}
               onChange={(e) => handleFormValueChange(field.id, e.target.checked)}
-              required={field.required}
             />
-            <span>{field.placeholder}</span>
-          </div>
+            <span>{field.label}</span>
+          </label>
         );
       case "select":
         return (
@@ -318,12 +473,11 @@ export default function FormBuilderPage() {
           >
             <option value="">{field.placeholder || "Select an option"}</option>
             {(field.options || []).map((opt, idx) => (
-              <option key={idx} value={opt}>
-                {opt}
-              </option>
+              <option key={idx} value={opt}>{opt}</option>
             ))}
           </select>
         );
+
       case "radio":
         return (
           <div className="radio-group">
@@ -637,9 +791,21 @@ export default function FormBuilderPage() {
             >
               {theme === "light" ? "🌙 Dark" : "☀️ Light"}
             </button>
-            <button className="primary-btn" onClick={handleSaveForm} disabled={loading}>
-              {loading ? "Saving..." : "Save Form"}
-            </button>
+            {isAdmin && (
+              <button className="primary-btn" onClick={handleSaveForm} disabled={loading}>
+                {loading ? "Saving..." : "Save Form"}
+              </button>
+            )}
+            {isAdmin && (
+              <button 
+                className="primary-btn" 
+                onClick={handlePublishForm} 
+                disabled={loading || !currentFormId}
+                style={{ background: "#10b981" }}
+              >
+                {loading ? "Publishing..." : "📢 Publish Form"}
+              </button>
+            )}
             <button
               className="primary-btn"
               onClick={() => setMode("submissions")}
