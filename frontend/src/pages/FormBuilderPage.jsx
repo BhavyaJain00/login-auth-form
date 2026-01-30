@@ -682,18 +682,20 @@ export default function FormBuilderPage() {
 
   return (
     <div className="builder-layout" style={{ background: theme === "dark" ? "#1f2937" : "#ffffff", color: theme === "dark" ? "#ffffff" : "#000000" }}>
-      <aside className="builder-sidebar" style={{ background: theme === "dark" ? "#111827" : "#f9fafb", borderRight: `1px solid ${theme === "dark" ? "#374151" : "#e5e7eb"}` }}>
+      {isAdmin && (
+        <aside className="builder-sidebar" style={{ background: theme === "dark" ? "#111827" : "#f9fafb", borderRight: `1px solid ${theme === "dark" ? "#374151" : "#e5e7eb"}` }}>
         <h3>Inputs</h3>
         <div className="palette-list">
           {PALETTE_FIELDS.map((item) => (
             <button
               key={item.type}
               className="palette-item"
-              draggable
+              draggable={isAdmin}
               onDragStart={(e) => {
+                if (!isAdmin) return;
                 e.dataTransfer.setData("text/plain", JSON.stringify(item));
               }}
-              onClick={() => addField(item)}
+              onClick={() => isAdmin && addField(item)}
               style={{ background: theme === "dark" ? "#374151" : "#ffffff", color: theme === "dark" ? "#ffffff" : "#000000", border: `1px solid ${theme === "dark" ? "#4b5563" : "#e5e7eb"}` }}
             >
               {item.label}
@@ -701,13 +703,15 @@ export default function FormBuilderPage() {
           ))}
         </div>
         <div style={{ marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #e5e7eb" }}>
-          <button 
-            className="primary-btn" 
-            onClick={handleCreateNewForm}
-            style={{ width: "100%", marginBottom: "15px" }}
-          >
-            Create New Form
-          </button>
+          {isAdmin && (
+            <button 
+              className="primary-btn" 
+              onClick={handleCreateNewForm}
+              style={{ width: "100%", marginBottom: "15px" }}
+            >
+              Create New Form
+            </button>
+          )}
           <h3 style={{ fontSize: "0.95rem", marginBottom: "10px" }}>Saved Forms</h3>
           {savedForms.length === 0 ? (
             <p className="muted-small">No saved forms</p>
@@ -735,53 +739,62 @@ export default function FormBuilderPage() {
             </div>
           )}
         </div>
-      </aside>
+      </aside>)}
 
       <section
         className="builder-canvas"
-        onDrop={handleDropFromPalette}
+        onDrop={isAdmin ? handleDropFromPalette : undefined}
         onDragOver={onDragOver}
         style={{ background: theme === "dark" ? "#1f2937" : "#ffffff" }}
       >
         <div className="canvas-header" style={{ background: theme === "dark" ? "#111827" : "#ffffff", borderBottom: `1px solid ${theme === "dark" ? "#374151" : "#e5e7eb"}` }}>
           <div>
-            <input
-              type="text"
-              value={formTitle}
-              onChange={(e) => setFormTitle(e.target.value)}
-              style={{
-                fontSize: "1.5rem",
-                fontWeight: "bold",
-                border: "none",
-                background: "transparent",
-                padding: "4px 8px",
-                borderRadius: "4px",
-                width: "100%",
-                maxWidth: "400px",
-                color: theme === "dark" ? "#ffffff" : "#000000"
-              }}
-              onFocus={(e) => (e.target.style.background = theme === "dark" ? "#374151" : "#ffffff")}
-              onBlur={(e) => (e.target.style.background = "transparent")}
-            />
-            <textarea
-              value={formDescription}
-              onChange={(e) => setFormDescription(e.target.value)}
-              placeholder="Click here to enter a description"
-              style={{
-                fontSize: "0.9rem",
-                border: "none",
-                background: "transparent",
-                padding: "4px 8px",
-                borderRadius: "4px",
-                width: "100%",
-                maxWidth: "400px",
-                resize: "vertical",
-                minHeight: "40px",
-                color: theme === "dark" ? "#ffffff" : "#000000"
-              }}
-              onFocus={(e) => (e.target.style.background = theme === "dark" ? "#374151" : "#ffffff")}
-              onBlur={(e) => (e.target.style.background = "transparent")}
-            />
+            {isAdmin ? (
+              <>
+                <input
+                  type="text"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "bold",
+                    border: "none",
+                    background: "transparent",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    width: "100%",
+                    maxWidth: "400px",
+                    color: theme === "dark" ? "#ffffff" : "#000000"
+                  }}
+                  onFocus={(e) => (e.target.style.background = theme === "dark" ? "#374151" : "#ffffff")}
+                  onBlur={(e) => (e.target.style.background = "transparent")}
+                />
+                <textarea
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  placeholder="Click here to enter a description"
+                  style={{
+                    fontSize: "0.9rem",
+                    border: "none",
+                    background: "transparent",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    width: "100%",
+                    maxWidth: "400px",
+                    resize: "vertical",
+                    minHeight: "40px",
+                    color: theme === "dark" ? "#ffffff" : "#000000"
+                  }}
+                  onFocus={(e) => (e.target.style.background = theme === "dark" ? "#374151" : "#ffffff")}
+                  onBlur={(e) => (e.target.style.background = "transparent")}
+                />
+              </>
+            ) : (
+              <>
+                <h2 style={{ margin: 0 }}>{formTitle}</h2>
+                <p style={{ margin: 0, opacity: 0.8 }}>{formDescription}</p>
+              </>
+            )}
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <button
@@ -843,27 +856,30 @@ export default function FormBuilderPage() {
             <div
               key={field.id}
               className={`canvas-field ${index === activeIndex ? "active" : ""}`}
-              draggable
+              draggable={isAdmin}
               onDragStart={(e) => {
+                if (!isAdmin) return;
                 e.dataTransfer.setData("field-id", field.id);
               }}
               onDrop={(e) => handleReorderDrop(e, index)}
               onDragOver={onDragOver}
-              onClick={() => setActiveIndex(index)}
+              onClick={() => isAdmin && setActiveIndex(index)}
               style={{ background: theme === "dark" ? "#374151" : "#ffffff", border: `1px solid ${theme === "dark" ? "#4b5563" : "#e5e7eb"}`, color: theme === "dark" ? "#ffffff" : "#000000" }}
             >
               <label className="canvas-field-label">
-                {field.label}{" "}
-                <button
-                  type="button"
-                  className="field-delete"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteField(field.id);
-                  }}
-                >
-                  ✕
-                </button>
+                {field.label} {" "}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="field-delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteField(field.id);
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
               </label>
               {renderFieldInput(field)}
             </div>
@@ -885,7 +901,8 @@ export default function FormBuilderPage() {
         )}
       </section>
 
-      <aside className="builder-inspector" style={{ background: theme === "dark" ? "#111827" : "#f9fafb", borderLeft: `1px solid ${theme === "dark" ? "#374151" : "#e5e7eb"}`, color: theme === "dark" ? "#ffffff" : "#000000" }}>
+      {isAdmin && (
+        <aside className="builder-inspector" style={{ background: theme === "dark" ? "#111827" : "#f9fafb", borderLeft: `1px solid ${theme === "dark" ? "#374151" : "#e5e7eb"}`, color: theme === "dark" ? "#ffffff" : "#000000" }}>
         <h3>Field settings</h3>
         {activeIndex == null ? (
           <p className="muted">Select a field on the canvas to edit.</p>
@@ -1060,7 +1077,7 @@ export default function FormBuilderPage() {
             );
           })()
         )}
-      </aside>
+      </aside>)}
     </div>
   );
 }
