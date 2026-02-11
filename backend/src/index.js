@@ -4,8 +4,6 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import authRoutes from "./routes/auth.routes.js";
-import adminRoutes from "./routes/admin.routes.js";
-import formRoutes from "./routes/form.routes.js";
 
 dotenv.config();
 
@@ -58,8 +56,6 @@ app.get("/health", (_req, res) => {
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/forms", formRoutes);
 
 mongoose
   .connect(MONGO_URI)

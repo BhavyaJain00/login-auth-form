@@ -17,6 +17,8 @@ export default function UserDashboardPage() {
   const [activeTab, setActiveTab] = useState("forms");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showSubmissionModal, setShowSubmissionModal] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
 
   const API_URL = import.meta.env.VITE_API_URL;
   const token = getToken();
@@ -68,6 +70,16 @@ export default function UserDashboardPage() {
   const handleLogout = () => {
     logout();
     navigate("/user/login");
+  };
+
+  const handleViewSubmission = (submission) => {
+    setSelectedSubmission(submission);
+    setShowSubmissionModal(true);
+  };
+
+  const handleCloseSubmissionModal = () => {
+    setSelectedSubmission(null);
+    setShowSubmissionModal(false);
   };
 
   return (
@@ -204,7 +216,10 @@ export default function UserDashboardPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
+                          <button
+                            onClick={() => handleViewSubmission(sub)}
+                            className="text-blue-600 hover:text-blue-900 text-sm font-medium"
+                          >
                             View
                           </button>
                         </td>
@@ -214,6 +229,55 @@ export default function UserDashboardPage() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+        {/* Submission Details Modal (User) */}
+        {showSubmissionModal && selectedSubmission && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 mx-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-bold">Submission Details</h3>
+                  <p className="text-sm text-gray-600">{selectedSubmission.formId?.title}</p>
+                </div>
+                <button
+                  onClick={handleCloseSubmissionModal}
+                  className="text-gray-500 hover:text-gray-800"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div className="text-sm text-gray-600">
+                  <strong>Submitted:</strong> {new Date(selectedSubmission.createdAt).toLocaleString()}
+                </div>
+                <div className="text-sm">
+                  <strong>Status:</strong>
+                  <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${selectedSubmission.submissionStatus === 'submitted' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                    {selectedSubmission.submissionStatus}
+                  </span>
+                </div>
+
+                <div>
+                  <h4 className="font-medium">Answers</h4>
+                  <div className="mt-2">
+                    {Array.isArray(selectedSubmission.answers) ? (
+                      <div className="space-y-2">
+                        {selectedSubmission.answers.map((ans, idx) => (
+                          <div key={idx} className="p-2 bg-gray-50 rounded">
+                            <div className="text-sm text-gray-700">{ans.label || ans.fieldLabel || ans.fieldId || `Field ${idx+1}`}</div>
+                            <div className="text-sm text-gray-900 font-medium">{String(ans.value ?? ans.answer ?? ans)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <pre className="bg-gray-100 p-3 rounded text-sm overflow-auto">{JSON.stringify(selectedSubmission.answers || selectedSubmission, null, 2)}</pre>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>
