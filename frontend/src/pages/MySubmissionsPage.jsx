@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getMySubmissions } from "../services/api.js";
+import { getMySubmission } from "../services/api.js";
 
 export default function MySubmissionsPage() {
   const { user } = useAuth();
@@ -28,6 +29,20 @@ export default function MySubmissionsPage() {
     } catch (err) {
       console.error("Failed to load submissions", err);
       setSubmissions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleView = async (submissionId) => {
+    try {
+      setLoading(true);
+      const { data } = await getMySubmission(submissionId);
+      // API returns { submission }
+      setSelectedSubmission(data.submission || null);
+      setShowModal(true);
+    } catch (err) {
+      console.error("Failed to load submission details", err);
     } finally {
       setLoading(false);
     }
@@ -65,9 +80,12 @@ export default function MySubmissionsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Form Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted Date</th>
                 {/* dynamic field headers (from first submission's form) */}
-                {submissions.length > 0 && submissions[0].formId?.fields?.map((field) => (
-                  <th key={field._id} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{field.label || field.type}</th>
-                ))}
+                {submissions.length > 0 && submissions[0].formId?.fields?.map((field) => {
+                  const fid = field._id || field.id;
+                  return (
+                    <th key={fid} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{field.label || field.type}</th>
+                  );
+                })}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -85,20 +103,22 @@ export default function MySubmissionsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(sub.createdAt).toLocaleDateString()}</td>
 
                     {/* show values for each field in the header order */}
-                    {submissions[0]?.formId?.fields?.map((field) => (
-                      <td key={field._id} className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                        {sub.answers?.[field._id]
-                          ? (Array.isArray(sub.answers[field._id]) ? sub.answers[field._id].join(", ") : String(sub.answers[field._id]))
-                          : "-"}
-                      </td>
-                    ))}
+                    {submissions[0]?.formId?.fields?.map((field) => {
+                      const fid = field._id || field.id;
+                      const val = sub.answers?.[fid];
+                      return (
+                        <td key={fid} className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                          {val !== undefined && val !== null && val !== "" ? (Array.isArray(val) ? val.join(", ") : String(val)) : "-"}
+                        </td>
+                      );
+                    })}
 
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">{sub.submissionStatus || "Submitted"}</span>
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button onClick={() => { setSelectedSubmission(sub); setShowModal(true); }} className="text-blue-600 hover:text-blue-900 font-medium">View</button>
+                      <button onClick={() => handleView(sub._id)} className="text-blue-600 hover:text-blue-900 font-medium">View</button>
                     </td>
                   </tr>
                 ))
@@ -121,17 +141,20 @@ export default function MySubmissionsPage() {
             <h4 className="text-lg font-bold mb-3">Form Answers</h4>
             {selectedSubmission.formId?.fields && selectedSubmission.formId.fields.length > 0 ? (
               <div className="grid grid-cols-1 gap-3">
-                {selectedSubmission.formId.fields.map((field) => (
-                  <div key={field._id} className="p-3 border rounded-md bg-gray-50">
-                    <div className="text-sm text-gray-600">{field.label}</div>
-                    <div className="mt-1 text-gray-900 font-medium">{formatAnswer(selectedSubmission.answers?.[field._id])}</div>
-                  </div>
-                ))}
+                {selectedSubmission.formId.fields.map((field) => {
+                  const fid = field._id || field.id;
+                  return (
+                    <div key={fid} className="p-3 border rounded-md bg-gray-50">
+                      <div className="text-sm text-gray-600">{field.label}</div>
+                      <div className="mt-1 text-gray-900 font-medium">{formatAnswer(selectedSubmission.answers?.[fid])}</div>
+                    </div>
+                  );
+                })}
               </div>
             ) : selectedSubmission.answers && Object.keys(selectedSubmission.answers).length > 0 ? (
               <div className="space-y-3">
                 {Object.entries(selectedSubmission.answers).map(([fieldId, answer]) => {
-                  const label = selectedSubmission.formId?.fields?.find(f => f._id === fieldId)?.label || fieldId;
+                  const label = selectedSubmission.formId?.fields?.find(f => (f._id === fieldId || f.id === fieldId))?.label || fieldId;
                   return (
                     <div key={fieldId} className="border-l-4 border-blue-500 pl-4 py-2">
                       <p className="text-sm text-gray-500 mb-1">{label}</p>

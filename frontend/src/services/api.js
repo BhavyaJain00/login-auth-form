@@ -72,6 +72,9 @@ export const submitForm = (formId, data) =>
 export const getMySubmissions = () =>
   api.get("/api/forms/submissions/my");
 
+export const getMySubmission = (submissionId) =>
+  api.get(`/api/forms/submissions/${submissionId}`);
+
 export const getFormSubmissions = (formId) =>
   api.get(`/api/forms/${formId}/submissions`);
 

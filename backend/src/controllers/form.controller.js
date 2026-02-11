@@ -297,7 +297,7 @@ export const getUserSubmissions = async (req, res) => {
     const userId = req.user.id;
 
     const submissions = await FormSubmission.find({ userId })
-      .populate("formId", "title")
+      .populate("formId", "title fields")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
