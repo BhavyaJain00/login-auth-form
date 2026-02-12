@@ -44,6 +44,9 @@ export default function AdminDashboardPage() {
   const API_URL = import.meta.env.VITE_API_URL;
   const token = getToken();
 
+  // Helper: safely get ID from objects (backend returns _id or id inconsistently)
+  const uid = (obj) => obj?._id || obj?.id;
+
   // Fetch users on component mount
   useEffect(() => {
     if (activeTab === "users") {
@@ -154,7 +157,9 @@ export default function AdminDashboardPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
 
-      setUsers([...users, data.user]);
+      // Normalize: backend createUser returns {id} but getAdminUsers returns {_id}
+      const normalizedUser = { ...data.user, _id: data.user._id || data.user.id };
+      setUsers([...users, normalizedUser]);
       setNewUserData({
         username: "",
         email: "",
@@ -168,6 +173,7 @@ export default function AdminDashboardPage() {
   };
 
   const handleDeleteUser = async (userId) => {
+    if (!userId) { setError("Cannot delete: user ID is missing"); return; }
     if (!window.confirm("Are you sure you want to delete this user?")) return;
 
     try {
@@ -179,7 +185,7 @@ export default function AdminDashboardPage() {
 
       if (!response.ok) throw new Error("Failed to delete user");
 
-      setUsers(users.filter((u) => u._id !== userId));
+      setUsers(users.filter((u) => uid(u) !== userId));
     } catch (err) {
       setError(err.message);
     }
@@ -300,12 +306,14 @@ export default function AdminDashboardPage() {
   };
 
   const handleViewUserSubmissions = async (user) => {
+    const userId = uid(user);
+    if (!userId) { setError("Cannot view submissions: user ID is missing"); return; }
     try {
       setLoading(true);
       setError("");
       setSelectedUserForSubmissions(user);
-      
-      const response = await fetch(`${API_URL}/api/admin/users/${user._id}/submissions`, {
+
+      const response = await fetch(`${API_URL}/api/admin/users/${userId}/submissions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -357,41 +365,37 @@ export default function AdminDashboardPage() {
         <div className="flex space-x-4 mb-8 border-b border-gray-200">
           <button
             onClick={() => setActiveTab("users")}
-            className={`py-2 px-4 font-medium ${
-              activeTab === "users"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
+            className={`py-2 px-4 font-medium ${activeTab === "users"
+              ? "border-b-2 border-blue-600 text-blue-600"
+              : "text-gray-600 hover:text-gray-900"
+              }`}
           >
             Users
           </button>
           <button
             onClick={() => setActiveTab("forms")}
-            className={`py-2 px-4 font-medium ${
-              activeTab === "forms"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
+            className={`py-2 px-4 font-medium ${activeTab === "forms"
+              ? "border-b-2 border-blue-600 text-blue-600"
+              : "text-gray-600 hover:text-gray-900"
+              }`}
           >
             Forms
           </button>
           <button
             onClick={() => setActiveTab("submissions")}
-            className={`py-2 px-4 font-medium ${
-              activeTab === "submissions"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
+            className={`py-2 px-4 font-medium ${activeTab === "submissions"
+              ? "border-b-2 border-blue-600 text-blue-600"
+              : "text-gray-600 hover:text-gray-900"
+              }`}
           >
             Submissions
           </button>
           <button
             onClick={() => setActiveTab("published")}
-            className={`py-2 px-4 font-medium ${
-              activeTab === "published"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
+            className={`py-2 px-4 font-medium ${activeTab === "published"
+              ? "border-b-2 border-blue-600 text-blue-600"
+              : "text-gray-600 hover:text-gray-900"
+              }`}
           >
             Published
           </button>
@@ -426,12 +430,12 @@ export default function AdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {users.map((u) => (
-                      <tr key={u._id}>
+                    {users.map((u, idx) => (
+                      <tr key={uid(u) || idx}>
                         <td className="px-6 py-4 whitespace-nowrap">{u.username}</td>
                         <td className="px-6 py-4 whitespace-nowrap">{u.email}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {new Date(u.createdAt).toLocaleDateString()}
+                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                           <button
@@ -441,7 +445,7 @@ export default function AdminDashboardPage() {
                             View Submissions
                           </button>
                           <button
-                            onClick={() => handleDeleteUser(u._id)}
+                            onClick={() => handleDeleteUser(uid(u))}
                             className="text-red-600 hover:text-red-900 font-medium"
                           >
                             Delete
@@ -539,9 +543,8 @@ export default function AdminDashboardPage() {
                         <td className="px-6 py-4 text-sm text-gray-600">{form.description}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{form.fields?.length || 0}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            form.isPublished ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
-                          }`}>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${form.isPublished ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                            }`}>
                             {form.isPublished ? "Published" : "Draft"}
                           </span>
                         </td>
@@ -832,10 +835,10 @@ export default function AdminDashboardPage() {
                         {/* Dynamic form data columns */}
                         {submission.formId?.fields?.map((field) => (
                           <td key={field._id} className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
-                            {submission.answers?.[field._id] 
-                              ? (Array.isArray(submission.answers[field._id]) 
-                                  ? submission.answers[field._id].join(", ") 
-                                  : String(submission.answers[field._id]))
+                            {submission.answers?.[field._id]
+                              ? (Array.isArray(submission.answers[field._id])
+                                ? submission.answers[field._id].join(", ")
+                                : String(submission.answers[field._id]))
                               : "-"}
                           </td>
                         ))}

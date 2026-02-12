@@ -10,6 +10,14 @@ import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
+// Post-login pages
+import AdminDashboardPage from "./pages/AdminDashboardPage";
+import FormBuilderPage from "./pages/FormBuilderPage";
+import UserDashboardPage from "./pages/UserDashboardPage";
+import MySubmissionsPage from "./pages/MySubmissionsPage";
+import PublicFormPage from "./pages/PublicFormPage";
+import PublishedFormsPage from "./pages/PublishedFormsPage";
+
 /**
  * ROOT ROUTING LOGIC
  * 
@@ -45,6 +53,18 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* ADMIN DASHBOARD ROUTES */}
+        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+        <Route path="/admin/forms/:formId/edit" element={<FormBuilderPage />} />
+
+        {/* USER ROUTES */}
+        <Route path="/user/dashboard" element={<UserDashboardPage />} />
+        <Route path="/user/submissions" element={<MySubmissionsPage />} />
+
+        {/* PUBLIC FORM ROUTES */}
+        <Route path="/form/:publicFormToken" element={<PublicFormPage />} />
+        <Route path="/forms" element={<PublishedFormsPage />} />
 
         {/* FALLBACK */}
         <Route path="*" element={<Navigate to="/admin/login" replace />} />
